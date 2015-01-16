@@ -1,0 +1,454 @@
+Document File for hook_kbs program
+
+From : Morton F. Kaplon  CIS : 73457,437
+       1047 Johnston Drive
+       Bethlehem PA 18017
+       (215)758-9686
+
+Revised and Updated : Sat  10-17-1992
+
+Subject : Hooking the Keyboard in OS/2 2.0 and Assigning HotKeys
+
+INTRODUCTION
+
+  HOOK_KBS is an OS/2 equivalent of a DOS TRS program. HotKeys are defined in
+  a user created data file that assigns to a HotKey a command to execute; the
+  data file is read by the program when loaded. Once loaded it intercepts the
+  message stream and inspects all WM_CHAR messages, the equivalent in DOS of
+  hooking the Keyboard Interrupt. When a key stroke meeting a HotKey
+  definition is detected, it takes appropriate action otherwise it passes
+  things along. The action taken is that of executing the assigned command
+  which may be a COM, EXE, CMD, or BAT file or loading an instance of the
+  command processor for either OS/2 or DOS. Thus you may activate a program or
+  load an instance of the command processor at the flick of a HotKey without
+  having to access an ICON.
+
+  HOOK_KBS works in conjunction with HOOK_DLS, a dynamic link module. HOOK_KBS
+  loads HOOK_DLS which captures Key Strokes (via sampling the systen nessage
+  queue) from all Windows BUT Full Screen OS/2 or DOS. The KeyStrokes
+  assignments are USER DEFINED in a data file named HOOK_KBS.DAT and the
+  program recognizes keystrokes assigned to Shift-Alt-X  and Shift-Ctrl-X
+  where X is 0.....9 and A...Z independent of case (The restriction on X is
+  mine and is changeable of course). There are two combinations Shift-Alt-Del
+  and Shift-Alt-Ins (both white keys) that are hard coded into the program.
+  Shift-Alt-Del unloads the program and Shift-Alt-Ins pops up a small OS/2
+  window in the center of the screen. These, as is true for the other key
+  stroke combinations, may be called from anywhere, except for the Full Screen
+  sessions noted above.
+
+  To capture from Full Screen OS/2 or DOS would require an additional program
+  but since my principal purpose was to create a program that would allow me
+  to capture keystrokes independent of where I was working and since not using
+  Full Screen has advantages in flexibility, I decided to go without it. For
+  DOS windows you may in fact readily switch back and forth from Full Screen
+  to Windowed via the Alt-Home combination so nothing is really lost there.
+
+  The reason for requiring the triplet combination of Shift-Alt-X or
+  Shift-Ctrl-X is that besides the large number of pre-assigned keys in OS/2,
+  many programs use keystroke combinations for accessing specific features and
+  if the Hot Key is to be useful, it should not conflict. I can only remember
+  one program that I have seen over the years which used a Shift-Alt-X or
+  Shift-Ctrl-X combination and so it seems to be a fairly safe one, and one
+  that should not lead to conflicts. In filtering KeyStrokes the program
+  rejects all but the combinations Shift-Alt-X and Shift-Ctrl-X so that the
+  usual run of keystroke assignments of Alt-X or Ctrl-X and all Function key
+  combinations will be unaffected. Keystrokes are recognized on the down
+  stroke. I would note that the Shift-Alt or Shift-Ctrl combination is
+  particularly easy to access on those keyboards where the Shift Key sits
+  vertically between the Ctrl and Alt keys.
+
+  As presently configured, once a key stroke combination has activated a
+  program, using that combination a second time will not open an additional
+  instance of the program but will switch back to the original. HOWEVER, IF
+  the opened window was used to load another program (such as a command
+  processor window might), then that window loses its unique identity and
+  using the same HotKey will activate another copy. The reason for this is
+  that the Identity of each window is determined by its Window title which is
+  defined as "Alt-X" or "Ctl-X" where X is the key used. The window popped up
+  with Shift-Alt-Ins has the letter ID "ê". If another program is started from
+  an open window, its program title is noted as "prgname.ext Alt-X" or
+  "prgname.ext Ctl-X", where ext is the program's extension, and is thus not
+  recognized as an already existing window title.
+
+  The program is written in 32 bit Assembler.
+
+OVERVIEW
+
+  FILES REQUIRED TO CREATE HOOK_KBS.EXE AND HOOK_DLS.DLL
+
+  DOSWIN32.MAC  Macros and Equates used by Programs
+
+  HOOK_KBS.ASM  Source for Executable, Assembled and Linked by MLC-W386.CMD
+
+  HOOK_DLS.DEF  Define file needed by IMPLIB and linker for HOOK_DLS.ASM
+
+  HOOK_DLS.ASM  Source for HOOK_DLS.DLL, Assembled and linked by DLL-W386.CMD
+
+  DLL-W386.CMD  IMPLIB and HOOK_DLS.DEF create C:\TOOLKT20\OS2LIB\HOOK_DLS.LIB
+                MASM then assembles HOOK_DLS.ASM, LINK386 produces HOOK_DLS.DLL
+                and HOOK_DLS.DLL is copied to C:\OS2\DLL directory.
+
+  MLC-W386.CMD  MASM assembles HOOK_KBS.ASM and LINK386 produces HOOK_KBS.EXE
+
+
+  To ASSEMBLE and LINK use the directory holding the above files as the
+  default and the two commands below to produce the necessary files.
+
+  DLL-W386  HOOK_DLS
+  MLC-W386  HOOK_KBS
+
+  FILES REQUIRED TO EXECUTE HOOK_KBS.EXE
+
+  HOOK_KBS.DAT  Text File assigning programs to key strokes-read by HOOK_KBS.
+                The user creates this file according to the structure outlined
+                in the sample. MUST BE LOCATED IN C:\OS2. Edit the sample to
+                fit your needs. Note that my assignment to C0 (Shift-Ctrl-0)
+                displays a file which I have configured to list the Hot Key
+                assignments. It serves as a useful reminder and I would
+                recommend each user to make such an assignment. The one I
+                use is a reasonable template and is included as HOT-KEY.MNU.
+                All assignments fit on one screen in the default window size.
+
+  HOOK_KBS.EXE  Exec file created above
+
+  HOOK_DLS.DLL  Dynamic Load File Created Above - must be in C:\OS2\DLL
+
+  DO NOT RENAME HOOK_DLS.* or HOOK_KBS.DAT as those names are coded into
+                HOOK_KBS.ASM .
+
+  The assembler used is MASM 6.0 including its built in MACROS for control
+  structures and segment definitions.
+
+  The 32 bit linker (LINK386) and the 32 bit library, along with the necessary
+  INC files require the user to have the OS/2 TOOLKIT as well as MASM 6.0 to
+  assemble the program.
+
+  PROGRAM METHOD
+
+  The system message queue is hooked using the HK_INPUT parameter. The
+  function which samples the message queue is in HOOK_DLS.DLL. In the section
+  "Input Hook", p. 30-2 in the Programming Guide, Vol. II, it states : "The
+  system calls an input_hook function whenever the WinGetMsg or WinPeekMsg
+  functions is about to return a message."
+
+  The installed procedure, InputHook, in HOOK_DLS.DLL tests for WM_CHAR and
+  when detected it further tests to see if the key combination Shift-Alt-X or
+  Shift-Ctrl-X was struck, with X (as defined above) on the down stroke. If
+  that criteria is met its POSTS to HOOK_KBS, via the API function WinPostMsg,
+  the message WM_USER+300h. The mp1 parameter of that message holds a flag
+  indicating whether Alt or Ctl was down and the mp2 parameter has the scan
+  code for the key X that was struck.
+
+  HOOK_KBS determines if the Key actually struck was assigned in the file
+  HOOK_KBS.DAT and if so reads its parameters into the appropriate data
+  structure required to execute the program. The Shift-Alt-Del key-stroke is
+  assigned to removing the DLL from memory and closing the program, equivalent
+  to unloading a TSR in DOS.
+
+  The main program, HOOK_KBS.EXE, a PM program, sets up the hook, receives the
+  message indicated above and takes the appropriate action depending on the
+  Key Stroke. The program is established as Invisible and Not listed in the
+  Window List. The program should be launched from an OS/2 window with the
+  START command, i.e. "START HOOK_KBS". That command can be placed in a
+  STARTUP.CMD for automatic loading. If you modify the file HOOK_KBS.DAT, you
+  must unload HOOK_KBS by Shift-Alt-Del(white key) and then reload it to
+  activate the new set of key assignments.
+
+  The program automatically sets DPMI_DOS_API=ENABLED for programs whose
+  session type (DOS full or windowed) is defined as 4 or 7 in hook_kbs.dat.
+  This enables the Dos Protected Mode Interface for the DOS session. If the
+  Session type value of 0 is used, DPMI is not enabled as above. It is
+  interesting to note that setting that parameter is done by passing the
+  DosStartSession data structure an address holding the text string above,
+  even though the manual states that the field for a DOS session is reserved
+  and must be ZERO. Unfortunately, there are quite a few errors in the OS/2
+  Technical Library, but fortunately a lot of people to inform you about them.
+
+  The flow of HOOK_KBS is delineated below. The same headings are listed in
+  the source code in HOOK_KBS.ASM.
+
+
+  PROGRAM FLOW : HOOK_KBS
+
+  PRELIMINARIES
+    Define Model and Calling Protocol
+    Equates for Using Macros in .DATA section
+    Equates for INC files
+    Include file listings
+    Prototype definitions for MASM
+    Structure definition for storing info on Program Assignment to Keys
+
+  .STACK   defines an 8KB stack
+
+  .DATA    contains variables,parameters and strings required for .CODE section
+
+  .CODE    outlined below
+
+  ESTABLISH WINDOW
+    WinInitialize             ;Initialize
+    WinCreateMessageQueue     ;Create a Message Queue
+    WinRegisterClass          ;Registers and identifies MainWinProc as name
+                              ;of Procedure for messages
+    WinCreateStdWindow        ;Creates window - here it is made Invisible,etc.
+
+  IS HOOK_DLS.DLL LOADED ?    ;If yes, display message and exit
+
+  ALLOCATE SHARED MEM AND STORE Handle Returned by WinCreateStdWindow
+    This is required in order to pass the Handle to HOOK_DLS
+
+  IS DATA FILE AVAILABLE AND VALID ?
+    Load C:\OS2\HOOK_KBS.DAT  ;If it does not exist, exit with Error Message
+    Get HOOK_KBS.DAT FileSize ;Required by program for subsequent use
+    AllocateMemoryBuffer      ;Buffer for User Key assignments from DataFile
+    Copy HOOK_KBS.DAT->Buffer ;Read File into Buffer
+    Close HOOK_KBS.DAT        ;No longer needed
+    Process Data in Buffer    ;If Format Not Correct, EXIT with  Message
+
+  ALLOCATE MEMORY FOR SWITCH LIST STRUCTURE
+    Do once since size needed can change as programs loaded/unloaded.
+
+  ESTABLISH THE HOOK
+    DosLoadModule             ;Loads HOOK_DLS.DLL
+    DosQueryProcAddr          ;Get the address of the function in the DLL
+    WinSetHook                ;Uses the Address above and HK_INPUT to set HOOK
+
+  CREATE MAIN MESSAGE LOOP    ;Standard PM requirement but EXIT TEST is
+                              ;commented out - a WM_QUIT message has no
+                              ;impact here
+
+  EXIT ROUTINE                ;Note this is commented out but is included
+                              ;to demonstrate the overall structure of
+                              ;setting up a PM program
+
+  PROCESS MESSAGE QUEUE       ;The heart of a PM program
+
+    MainWinProc               ;Processes message queue
+      GET PASSED PARAMETERS FROM STACK
+
+      RESTORE STACK POINTER AND STACK STATUS
+
+      TEST SYSTEM QUEUE FOR MESSAGES FROM
+
+        WM_CREATE
+
+        WM_PAINT
+
+        WM_CHAR
+
+        WM_USER+300h          ;dispatched from hook_dls.dll
+        IF msg = WM_USER+300h
+          GET SCAN CODE AND ALT/CTRL FLAG
+          IF Alt-Del struck
+            Release DLL,Memory, Close Queues and Windows and Exit
+          ELSE TEST FOR ASSIGNED KEYS
+            SETUP DATA STRUCTURES FOR ACTIVATING HOT KEY
+            GO THRU SWITCH LIST TO SEE IF HOT KEY ACTIVE
+               IF ACTIVE SWITCH TO
+               ELSE ACTIVATE HOT KEY PROGRAM
+          ENDIF
+        ENDIF
+
+  END  PROGRAM FLOW : HOOK_KBS
+
+  The flow of HOOK_DLS is delineated below. The same headings are listed in
+  HOOK_KBS.DLL.
+
+  PROGRAM FLOW : HOOK_DLS
+
+  PRELIMINARIES
+    Define Model and Calling Protocol
+    Equates for INC files
+    Include file listings
+
+  .STACK   defines a 2KB stack
+
+  .DATA    contains variables,parameters and strings required for .CODE section
+
+  .CODE    delineated below
+
+  ESTABLISH InputHook
+
+  GET PARAMETERS FROM STACK
+
+  GET ADDRESS OF SHARED MEMORY
+
+      Get Handle Of Hook_kbs and Release Shared Memory
+
+  IF WM_CHAR MESSAGE DETECTED
+       Save mp1 and mp2 of WM_CHAR message
+       Test for Shift Key,Alt/Ctrl Down and Valid Scan Key
+       IF ScanCode & Shift & one of Alt or Ctrl down
+           Send original message nowhere via WM_USER+0cfffh
+           WinPostMessage to HOOK_KBS via WM_USER+300h ;with ALt/Ctrl Flag and
+       ENDIF                                           ;ScanCode as parms
+  ENDIF
+
+  END PROGRAM FLOW : HOOK_DLS
+
+DISCUSSION
+
+
+  DOSWIN32.MAC  (Macros and Equates used by Program)
+
+  This file contains the equates, EXTRN declarations, MACROS and Procedures
+  used in the ASM files. The EXTRN declarations include many more than those
+  used in the program but represent the accrued list of those used so far in
+  my OS/2 assembler programming. (As I use a new one, I just add it).
+
+  Included are two defines used in the .DATA section of hook_kbs.asm. The
+  single most important MACRO is $CALL. This allows one to list parameters
+  after the function name in the same order as they are listed in the OS/2 2.0
+  Technical Manuals (and as called in C) . The macro pushes them on the stack
+  in the correct order and resets the stack pointer after the call. It could
+  clearly easily be extended to accomodate a longer parameter list. Following
+  that are several useful macros and three others defined via equates.
+
+  For displaying error messages and rudimentary inline debugging, there are
+  three macros named $DosErrMsg, $WinErrMsg and $WinDebugMessage . The first
+  two are meant to be called after an API function call to display the error
+  number for the function used. Information on the success of the call is
+  returned in EAX and this must be tested. Note EAX returns differently for
+  DOS than for WIN calls. The user passes the text string for the Function
+  used on the parameter line for the $XXXErrMsg. $DosErrMsg can only be used
+  in Text Windows while $WinErrMsg only in PM windows.
+
+  Finally there are several macros and procedures used for Binary <-> ASCII
+  conversion for both Decimal and Hex, and also for displaying numerical
+  results in Binary form. Not all of these are used but are included as a part
+  of the overall package. Note that in 32 bit mode, it is most convenient to
+  do all these conversion as DWORDS. These are required for numerical to ASCII
+  conversion for the error messages.
+
+  HOOK_DLS.DEF
+
+  This file is required by both IMPLIB and LINK386 in the creation of
+  HOOK_DLS.DLL. It identifies the function(s) exported from the DLL.
+
+  HOOK_DLS.ASM
+
+  This file represents the dynamic link code. It contains one function, named
+  InputHook whose syntax is defined by OS/2 on page 30-2 of the Programming
+  Guide, Vol II of the OS/2 Technical Library. This DLL monitors the system
+  message queue and looks for the message WM_CHAR.
+
+  Since I decided to use WinPostMsg to return information to hook_kbs, its
+  handle is required in this program. The simplest way seemed to be to pass it
+  in a shared memory region established by hook_kbs. Thus the first task done
+  by the function InputHook, after setting itself up, is to get the address of
+  the shared memory region and to obtain the handle of hook_kbs that was placed
+  there by hook_kbs. After that is done, the shared memory is released.
+
+  The program then waits for a message WM_CHAR and when that is detected the
+  Keyboard Parameters are tested to see if they meet the HotKey criteria. If
+  they do not, the message is passed on. If they do, a flag denoting whether
+  the Alt or Ctrl key was down is equated to the mp1 parameter and the scan
+  code value equated to the mp2 parameter of the message WM_USER+300h which is
+  posted to HOOK_KBS by WinPostMsg.
+
+  This DLL is released from memory when hook_kbs is closed.
+
+  HOOK_KBS
+
+  The first four WIN... function calls are a standard calling sequence in
+  setting up a PM program. Since a PM program cannot display text using DOS
+  write calls, error messages cannot be displayed with Window Message Calls
+  until the Window is initialized with the first call.
+
+  After the window is established a test is done to see if HOOK_DLS is loaded.
+  If it is a message is given and the program terminates. A Shared Memory area
+  is then established. Its sole use in this program is to furnish a method of
+  passing HOOK_KBS's handle to HOOK_DLS. This is done following the call to
+  DosAllocSharedMem. Note that eax is now tested for a non-zero value
+  indicating an error, as contrasted to Win calls where a 0 returned in eax
+  indicates an error.
+
+  Next the program attempts to load the data file C:\OS2\HOOK_KBS.DAT. If it
+  does not exist, an error message is displayed and the program terminates. If
+  it loads, its size is obtained (note the calls are rather similar to what
+  you would do in DOS) and that value is used to create a buffer to hold the
+  file in memory. The file is read into the buffer and then closed. The big
+  .WHILE loop reads the buffer and assigns the Addresses of the Executable
+  program name and Command Line parameters and the Session type to the
+  appropriate member of the Structure ExecOnKb and places a 0 at the end of
+  strings in order that they meet the requirement of being ASCIIZ strings. If
+  the count of characters read in the buffer does not equal the file size or
+  if the data file was not properly formatted, an error message is displayed
+  and the program terminated; the error message displays the number of bytes
+  of the buffer processed when the program terminated.
+
+  If everything is in order, a large memory block is defined to hold the data
+  structure of the Switch List (which is used to determine if a program is
+  loaded or not) and then the HOOK is established with the next three calls to
+  DosLoadModule, DosQueryProcAddr and WinSetHook.
+
+  The Main Message Loop is next established. Normally this loop is exited when
+  WM_QUIT is received and the exit code is executed to gracefully terminate
+  the program. However, in this program, to ensure that it is terminated only
+  by the Key Combination Alt-Del, the Main Message Loop is not exitable (I
+  have commented out the normal tests) and I have included the Exit code only
+  for purposes of demonstration of what a more normal program would look like.
+
+  The procedure MainWinProc examines the message queue. It first sets up to
+  get the parameters passed on the stack and goes through a series of tests
+  for specific messages. In a C program this would usually be a Case
+  statement. There is no requirement for these tests to do anything in this
+  case since the window is invisible but they are required to respond to
+  certain system calls.
+
+  The heart of the program is the test for WM_USER+300h . WM_USER defines a
+  lower limit for message IDs that is (presumably) guaranteed not to conflict
+  with any system messages. I have arbitrarily used WM_USER + 300h. HOOK_DLS
+  uses this message ID in posting its information to this programs message
+  queue. First a test is done to see whether Alt-Del was struck and if so, the
+  system is closed and exited. If not, tests are done to see whether the Scan
+  Code of the key struck is in the list read from HOOK_KBS.DAT. A test is
+  first done to see if the (white)Insert key was struck, and if not, a test is
+  done for the rest of the possible assignments.
+
+  Depending on the key combination struck, the address of the program, address
+  of the command line parameters, the Session Type for the Key Combination
+  identified in the message and the Program Title ( based on the Key
+  combination ) are obtained and inserted into the StartData structure
+  required for the DosStartSession function. The Switch (Task) list is then
+  examined to see if the HotKey program is already loaded and its identity
+  unchanged. If it is, it is switched to, else DosStartSession is then called
+  with appropriate parameters.
+
+  Note that WinSetFocus is called before DosStartSession. The programs started
+  by DosStartSession will not be in the foreground unless the program calling
+  DosStartSession is in the foreground and it seems reasonable that programs
+  called with a "HotKey" want to be in the foreground.
+
+  The six procedures at the very end are just routines used by parts of the
+  code in the program.
+
+  I have found this program very useful, particularly with respect to programs
+  using COM ports. Since OS/2 will not allow you to have two programs open at
+  the same time that use the same COM port, this affords a rapid means of
+  serially accessing programs sharing a common COM port. Another use I have
+  found effective is to assign MENUS to some of the Hot Keys. In my sample
+  HOOK_KBS.DAT file, the assignment Aq (Alt-q) to loadq.cmd, is a CMD file
+  that displays a menu for editing a variety of different files and the
+  assignment Ar (Alt-r) to viewref.cmd displays a menu whose choices allow you
+  to View the various OnLine References of OS/2 and Toolkit20. You can readily
+  assign any program assigned to an ICON to a hot key, presuming the program
+  has an executable form or can be called as a parameter to another program.
+  But by far I have found it an efficient expediter for rapidly accessing
+  programs without changing anything on your DeskTop.
+
+  As it was with TSR's in DOS, you must be careful of your assignments so that
+  required keys in programs are not made unavailable. That stricture was
+  reflected in my choice of keys to assign and reflects my particular
+  concerns. A natural question to ask is - are there any problems with other
+  programs that may be sampling the system message queue ?
+
+  Included in OS/2 and the Toolkit are the following programs that I am aware
+  of which are "resident" in the above sense:
+
+    PULSE    From Productivity Group - Samples Processor Activity
+    KWIKINF  From OS/2 ToolKit20     - An  OnLineReference Access
+    PMSPY    From OS/2 ToolKit20     - A Message queue trace
+
+  I have not detected any problems with HOOK_KBS loaded with any or all of the
+  above programs active, independent of the order of loading.
+

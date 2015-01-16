@@ -1,0 +1,594 @@
+;--------------------------------------------------------------------
+;doswin32.mac  Begun:Sat  08-22-1992  Revised:Tue  09-15-1992
+;
+;These Macros are more general purpose in definition and serve both
+;DOS and WIN calls
+;
+;--------------------------------------------------------------------
+;---------------- Switch List Structures in PMSHL.INC
+;SWCNTRL STRUC   ;size = 96                        ;OFFSET FROM 0
+;swctl_hwnd      DD      ?                              8
+;swctl_hwndIcon  DD      ?                             12
+;swctl_hprog     DD      ?                             16
+;swctl_idProcess DD      ?                             20
+;swctl_idSession DD      ?                             24
+;swctl_uchVisibility     DD      ?                     28
+;swctl_fbJump    DD      ?                             32
+;swctl_szSwtitle DB      MAXNAMEL+4 DUP (?)            36  this is 60 long
+;swctl_bProgType DD      ?                             96
+;SWCNTRL ENDS
+
+;SWENTRY STRUC   ;size = 4 + 96
+;swent_hswitch   DD      ?                              4 SwitchListEntryHandle
+;swent_swctl     DB      SIZE SWCNTRL DUP (?)           8
+;SWENTRY ENDS
+
+;SWBLOCK STRUC   ;size = 4 + (4+96)                ;
+;swblk_cswentry  DD      ?                         ;    0  Count of Entries
+;swblk_aswentry  DB      SIZE SWENTRY * 1 DUP (?)  ;    4
+;SWBLOCK ENDS
+swblksize          equ  100     ; Size of SwitchList Structure
+
+;equates related to message structure
+hwnd           equ   quemsg.qmsg_hwnd
+msg            equ   quemsg.qmsg_msg
+mp1            equ   quemsg.qmsg_mp1
+mp2            equ   quemsg.qmsg_mp2
+
+HWND_DESKTOP   equ   1               ;needed for  WinErrorMessage macro
+msgBoxErrStyle equ   (MB_ERROR OR MB_CANCEL)
+
+;---------------- I/O DOS Calls Only---------------
+stdin          equ   0
+stdout         equ   1
+stderr         equ   2
+
+;---------------- Useful ---------------
+cr             equ   0dh
+lf             equ   0ah
+nl             equ   0dh,0ah   ;cr+lf
+BEL            equ   07h
+NULL           equ   0000h
+
+;External declarations for DOS (Control Program) Functions (Used So Far)
+EXTRN    DosAllocMem:near,DosAllocSharedMem:near,DosBeep:near,DosClose:near
+EXTRN    DosCreateThread:near,DosDevConfig:near,DosDevIOCtl:near
+EXTRN    DosExecPgm:near,DosExit:near,DosFreeMem:near,DosFreeModule:near
+EXTRN    DosGetInfoBlocks:near,DosGetNamedSharedMem:near,DosKillThread:near
+EXTRN    DosLoadModule:near,DosOpen:near,DosPutMessage:near
+EXTRN    DosQueryModuleHandle:near,DosQueryModuleName:near,DosQueryProcAddr:near
+EXTRN    DosQueryProcType:near,DosRead:near,DosSleep:near,DosSetFilePtr:near
+EXTRN    DosStartSession:near,DosSetPriority:near,DosWrite:near
+
+;External declarations for Window (PM) Functions (Used So Far)
+EXTRN    WinAlarm:near,WinBeginPaint:near,WinBroadcastMsg:near,WinChangeSwitchEntry:near
+EXTRN    WinCreateMsgQueue:near,WinCreateStdWindow:near,WinDefWindowProc:near
+EXTRN    WinDestroyMsgQueue:near,WinDestroyWindow:near,WinDispatchMsg:near
+EXTRN    WinDrawText:near,WinEndPaint:near,WinFillRect:near,WinFocusChange:near
+EXTRN    WinFreeErrorInfo:near
+EXTRN    WinGetCurrentTime:near,WinGetErrorInfo:near,WinGetKeyState:near
+EXTRN    WinGetMsg:near,WinGetLastError:near,WinInitialize:near,WinMessageBox:near
+EXTRN    WinOpenWindowDC:near,WinPostMsg:near
+EXTRN    WinQueryDesktopWindow:near,WinQueryFocus:near,WinQueryMsgTime:near
+EXTRN    WinQuerySwitchList:near,WinQueryWindowRect:near
+EXTRN    WinRegisterClass:near,WinReleaseHook:near,WinReleasePS:near
+EXTRN    WinSetFocus:near,WinSetHook:near,WinSendMsg:near
+EXTRN    WinSwitchToProgram:near,WinTerminate:near
+
+;----------------------------------------------------------
+;DEFINE Macros for DATA SEgment
+
+;Define Buffers used for Storage and for Num conversion
+$DefineNumBufs  MACRO
+    B_Buf       BYTE  3 dup(?)
+    W_Buf       BYTE  5 dup(?)
+    DW_Buf      BYTE 10 dup(0)
+    Bit8Str     BYTE  8 dup(?)
+    Bit16Str    BYTE  16 dup(?)
+    Bit32Str    BYTE  32 dup(?)
+    ten        DWORD  10         ;used for AsciiToWord
+    lth        DWORD  ?          ;used for AsciiToWord
+    errId      DWORD  ?
+ENDM
+
+;some standard strings and other vars for Data segment
+$DOSErrorMessages  MACRO
+    DosErrorMsg     BYTE   " Error calling Dos CP Function "
+    DosErrOpts      BYTE   "Enter Q to Quit Program - Any other Key to Continue"
+    DosReadErr      BYTE   ?,?    ;required for DOS read
+    newline         BYTE   13,10
+    nwritten       DWORD   ?      ;required for DOS Write
+ENDM
+
+;This macro allows the calling of any function subject only to the fact
+;that it has no more than 10 parameters and that all are either DWORD
+;long or are 32 bit offsets - i.e. it is a Full PUSH
+;Enter Arguments in same order as listed in OS/2 2.0 Technical Library
+$Call MACRO fname,arg0,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9
+    ctr = 0
+    IFNB <arg9>
+       push  arg9
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg8>
+       push  arg8
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg7>
+       push  arg7
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg6>
+       push  arg6
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg5>
+       push  arg5
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg4>
+       push  arg4
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg3>
+       push  arg3
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg2>
+       push  arg2
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg1>
+       push  arg1
+       ctr = ctr + 4
+    ENDIF
+    IFNB <arg0>
+       push  arg0
+       ctr = ctr + 4
+    ENDIF
+    call   fname
+    add    esp,ctr
+ENDM
+
+$NewLine     equ    $DosWriteMsg <cr,lf>
+
+$Printf0 MACRO  typ,prm  ;typ : b/w/s = BYTE/WORD/STRING whose value is val
+    local    msgname,xit     ;bb/bw/ = 8bitstring,16bitstring representation of #
+    pusha                    ;bx/wx/dwx =  Byte/Word/DWord to Hex
+    IFIDNI  <typ>,<x>    ;default - nothing entered - exit
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>,<b>    ;b/w/ followed by b/h is in Binary/Hex representation
+        xor  edx,edx
+        mov  dl,prm
+        $DWordToAscii edx,DW_Buf
+        $DosWriteMsgAT DW_Buf
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>,<w>
+        xor  edx,edx
+        mov  dx,prm
+        $DWordToAscii edx,DW_Buf
+        $DosWriteMsgAT DW_Buf
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>,<dw>
+        $DWordToAscii prm,DW_Buf
+        $DosWriteMsgAT DW_Buf
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>,<bx>    ;b/w/ followed by b/h is in Binary/Hex representation
+        xor  edx,edx
+        mov  dl,prm
+        $DWordToHex edx,DW_Buf
+        $DosWriteMsgAT DW_Buf
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>,<wx>
+        xor  edx,edx
+        mov  dx,prm
+        $DWordToHex edx,DW_Buf
+        $DosWriteMsgAT DW_Buf
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>,<dwx>
+        $DWordToHex prm,DW_Buf
+        $DosWriteMsgAT DW_Buf
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>,<bb>
+        mov   al,prm
+        $ByteToBitString
+        $DosWriteMsgAT  Bit8Str
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>, <wb>
+        mov   ax,prm
+        $WordToBitString
+        $DosWriteMsgAT  Bit16Str
+        jmp   xit
+    ENDIF
+    IFIDNI  <typ>, <s>
+    $DosWriteMsg prm
+        jmp   xit
+    ENDIF
+xit:popa
+ENDM
+
+$Printf MACRO  t1,p1,t2:=<x>,p2,t3:=<x>,p3,t4:=<x>,p4,t5:=<x>,p5,t6:=<x>,p6,t7:=<x>,p7
+    $Printf0  t1,p1
+    $Printf0  t2,p2
+    $Printf0  t3,p3
+    $Printf0  t4,p4
+    $Printf0  t5,p5
+    $Printf0  t6,p6
+    $Printf0  t7,p7
+ENDM
+
+
+$CLS  MACRO     ;clear screen with DosWrite
+    local c0
+    mov         cx,24
+    c0:
+                $DosWriteMsg cr
+                $DosWriteMsg lf
+    loop        c0
+ENDM
+
+$DosReadKB MACRO  numreq,char_in_buf
+    .DATA
+    IFNDEF    bytesread
+        bytesread DWORD   0
+    ENDIF
+    .CODE
+    push     offset bytesread
+    pushd    numreq
+    push     offset char_in_buf
+    pushd     stdin
+    call     DosRead
+    add      esp,16
+ENDM
+
+; Write a message to console at current cursor
+$DosWriteMsg MACRO  messag
+    local    idmessag
+    .DATA
+    IFNDEF   messag
+      idmessag   BYTE  messag
+    ENDIF
+    .CODE
+    push     offset nwritten
+    push     LENGTHOF idmessag
+    push     offset idmessag
+    push     stdout      ;unsigned long
+    call     DosWrite
+    add      esp,16      ;restore stack pointer
+ENDM
+
+; Write to console the message stored AT location
+; ofset is the offset from start of string "location" to start writing
+; devised to get around printing leading spaces in numerical conversions
+$DosWriteMsgAT MACRO  location ,ofset:=<0>   ;0 is default
+    push     offset nwritten
+    mov      eax,LENGTHOF location
+    sub      eax,ofset
+    push     eax
+    mov      eax,offset location
+    add      eax,ofset
+    push     eax
+    pushd    stdout      ;unsigned long
+    call     DosWrite
+    add      esp,16      ;restore stack pointer
+ENDM
+
+
+$Alarm  MACRO     ;Makes a nice up and down sound
+    $Call DosBeep,300,300
+    $Call DosBeep,600,300
+    $Call DosBeep,300,300
+ENDM
+
+; Concantenate String S2 to end of String S1 and place at S3
+; S3 buffer must be long enough to hold S1+S2. S3 is 0 terminated
+; copy S1 to buffer S3 and then add S2 at end
+$ConcantS1andS2toS3  MACRO  S1,S2,S3
+     pusha
+     mov     edi,offset S3
+     mov     esi,offset S1
+     mov     ecx,LENGTHOF S1
+     rep     movsb
+     mov     esi,offset S2
+     mov     ecx,LENGTHOF S2
+     rep     movsb
+     inc     edi
+     mov     byte ptr [edi],0    ;NULL Terminate
+     popa
+ENDM
+
+;This is useful for BEEPING
+;$DosBeep equ  $Call DosBeep,500,500   ;frequency,duration
+
+;Useful for exiting
+$DosExit equ  $Call DosExit,1,0  ;return 0 and all threads
+
+;useful for Carriage ReturnLine Feeds - requires newline definition in .DATA
+$NewLine equ  $Call DosWrite,stdout,offset newline,LENGTHOF newline,offset nwritten
+
+$NumSwitchListEntries  equ  $Call  WinQuerySwitchList,hab,0,0    ;eax has number of entries
+
+;Used for Displaying Error Messages forDOS functions
+;Called right after a $Call call of a DOS function if Error trapping desired
+;The user passes the FuncName to be displayed
+;It should be the Name of the Function used in $Call
+;If error is detected, after displaying error number and function
+;User is offered option of exiting or continuing
+$DosErrMsg  MACRO  FuncName   ;FuncName passed in calling macros
+    local  exitDEM,  msgFuncName
+    .IF  eax == 0
+        jmp  exitDEM
+    .ENDIF
+    IFNDEF  FuncName
+      .DATA
+       msgFuncName   BYTE FuncName
+      .CODE
+    ENDIF
+    $DWordToAscii eax,DW_Buf
+    $NewLine
+    $Call DosWrite,stdout,offset DW_Buf,LENGTHOF DW_BUF,offset nwritten
+    $Call DosWrite,stdout,offset DosErrorMsg,LENGTHOF DosErrorMsg,offset nwritten
+    $Call DosWrite,stdout,offset msgFuncName,LENGTHOF msgFuncName,offset nwritten
+    $DosBeep
+    $NewLine
+    $Call DosWrite,stdout,offset DosErrOpts,LENGTHOF DosErrOpts,offset nwritten
+    $Call DosRead,stdin,offset DosReadErr,1,offset nwritten
+    mov    al,DosReadErr
+.IF     al == 'q' || al == 'Q'
+     $DosExit
+.ENDIF
+exitDEM:
+ENDM
+
+$WinDebugMessage MACRO arg      ;Display Message = arg # in eax before call
+    pusha
+    $DWordToAscii eax,DW_Buf
+    $Alarm
+    $ConcantS1andS2ToS3 DW_Buf,arg,Concanted
+    $Call WinMessageBox,HWND_DESKTOP,HWND_DESKTOP,offset Concanted,offset msgInfo,0,MB_ENTER    ;msgBoxErrStyle
+    popa
+ENDM
+
+;Error Message for PM applications - Pass the Function name as String in ""
+$WinErrMsg MACRO FuncName      ;sound alarm and display error box
+    local   msgFuncName
+    $Call WinGetLastError,hab    ;gets error number for code
+    IFNDEF  FuncName
+      .DATA
+       msgFuncName   BYTE FuncName
+    ENDIF
+   .CODE
+    $DWordToAscii eax,DW_Buf
+    $Alarm
+    $ConcantS1andS2ToS3 DW_Buf,msgFuncName,Concanted
+    $Call WinMessageBox,HWND_DESKTOP,HWND_DESKTOP,offset Concanted,NULL,0,msgBoxErrStyle
+ENDM
+
+$GetCmdLine  MACRO  ;on return esi has offset of Command Line
+    .DATA
+    IFNDEF  ppTIB
+        ppTIB    DWORD  ?   ;To Hold Address of Thread   InfoBlock
+        ppPIB    DWORD  ?   ;To Hold Address of  Process InfoBlock
+    ENDIF
+    .CODE
+    push      offset ppPIB
+    push      offset ppTIB
+    call      DosGetInfoBlocks
+    add       esp,8          ;update ESP
+    mov       ebx,[ppPIB]    ;ebx = address of the PIB
+    mov       esi,[ebx+12]   ;esi is offset of command line
+ENDM
+
+IFDEF NUMBUFS
+;---------- Binary -> Ascii and Ascii -> Binary Conversions  ---------------
+;Is Passed buffer name - tests to see if all characters in buffer are digits
+;If not returns error message and aborts else returns number in eax
+;skips over leading and trailing spaces
+$GetNumDigits MACRO  digbuf
+    push     esi
+    push     edi
+    mov      esi,offset digbuf
+    mov      edi,0
+    .WHILE 1
+        .WHILE byte ptr [esi] == 32    ;skip over leading spaces
+            inc esi
+        .ENDW
+        .IF  byte  ptr [esi] >= 30h
+            .IF byte ptr [esi] <= 39h
+                inc edi
+                inc esi
+             .ELSE
+                .BREAK
+            .ENDIF
+         .ELSE
+            .BREAK
+         .ENDIF
+    .ENDW           ;on exit edi has number of bytes read
+    .IF edi == 0    ;no valid input
+         $DosBeep 500,500
+         IFDEF NOWIN    ;not a PM application
+             $NewLine
+             $Call DosWrite,"Invalid Input for ASCIIToDWord - Aborting"
+             $NewLine
+             $DosExit
+         ELSE
+             mov   eax,0
+             $WinDebugMessage
+             call ExitWin
+             $DosExit
+         ENDIF
+    .ENDIF
+    mov    eax,edi
+    pop    edi
+    pop    esi
+ENDM
+
+;Convert DWORD to ASCII string at 10 BYTE buffer at digits
+;Number to convert moved into EAX, esi points to buffer
+$DWordToAscii MACRO  num,buf
+    pusha
+    mov      eax,num
+    mov      esi,offset buf
+    call     DWordToAscii
+    popa
+ENDM
+
+;Convert DWORD to Hex string at 10 BYTE buffer at digits
+;Number to convert moved into EAX, esi points to buffer
+$DWordToHex MACRO  num,buf
+    pusha
+    mov      eax,num
+    mov      esi,offset buf
+    call     DWordToHex
+    popa
+ENDM
+
+;convert string representing BYTE in BUFF to numeric DWORD
+;result returned in EAX)
+$AsciiToDWord  MACRO  Buff
+    $GetNumDigits Buff  ;checks on validity of characters in buffer as well
+    mov      lth,eax
+    push     ebx
+    push     ecx
+    push     edx
+    push     edi
+    push     esi
+    mov      esi,offset Buff
+    call     AsciitoDWord
+    pop      esi
+    pop      edi
+    pop      edx
+    pop      ecx
+    pop      ebx
+ENDM
+
+;Convert BYTE to Binary Bit String
+;Byte to convert in AL
+$ByteToBitString MACRO
+    pusha
+    mov     edi,offset Bit8Str
+    call    ByteToBitString
+    popa
+ENDM
+
+;Byte to convert in AX
+$WordToBitString MACRO
+    pusha
+    mov     edi,offset Bit16Str
+    call    WordToBitString
+    popa
+ENDM
+
+;----------- Procedures here ---------------
+
+.CODE
+;--- Call with esi pointing to buffer to store digit string
+DWordToAScii  Proc
+    mov      edi,10
+    xor      edx,edx
+    mov      ecx,10
+d0: div      edi
+    add      edx,30h
+    push     edx          ;save on stack
+    xor      edx,edx
+    loop     d0           ;on exit top of stack has first digit, etc.
+    mov      ecx,10
+d1: pop      edx
+    mov      [esi],dl     ;esi has address of buffer
+    inc      esi
+    loop     d1
+    ; now get rid of leading 0's
+    sub      esi,10       ;back to start of string
+    mov      ecx,10
+    .WHILE   byte ptr [esi] == "0"
+         mov byte ptr [esi]," "
+         inc esi
+         dec ecx
+    .ENDW
+    .IF  cx == 0          ; all spaces
+         dec esi
+         mov byte ptr [esi] ,'0'
+    .ENDIF
+     ret
+DWordToAscii   endp
+
+AsciiToDWord  proc
+    mov      eax,1
+    xor      edi,edi
+    xor      ebx,ebx
+    mov      ecx,lth
+    dec      lth
+    add      esi,lth       ;offset is lnth -1 from 0
+w0: push     eax
+    sub      byte ptr [esi],30h
+    mov      bl,[esi]
+    mul      bl            ;result in EAX
+    add      edi,eax
+    pop      eax
+    mul      ten        ;10 x previous value in AX now
+    dec      esi
+    loopd    w0
+    mov      eax,edi
+    ret
+AsciiToDWord  endp
+
+;--- Call with esi pointing to buffer to store digit string
+DWordToHex  Proc
+    mov      edi,16
+    xor      edx,edx
+    mov      ecx,8
+d0: div      edi
+    .IF      edx <= 9
+        add      edx,30h
+    .ELSE
+        add      edx,55   ;use caps
+    .ENDIF
+    push     edx          ;save on stack
+    xor      edx,edx
+    loop     d0           ;on exit top of stack has first digit, etc.
+    mov      ecx,8
+d1: pop      edx
+    mov      [esi],dl     ;esi has address of buffer
+    inc      esi
+    loop     d1
+    mov      byte ptr [esi],'H'
+     ret
+DWordToHex   endp
+
+WordToBitString  proc  ;called with edi set to offset of string and # in ax
+    mov     cx,16
+    dec     edi
+wb0:inc     edi
+    shl     ax,1             ;move most significant bit to carry flag
+    jc      wb1              ;if set copy '1'
+    mov     byte ptr [edi],'0'       ;else copy '0'
+    jmp     wb2
+wb1:mov     byte ptr [edi],'1'
+wb2:loop    wb0
+    ret
+WordToBitString endp
+
+.CODE
+ByteToBitString  proc        ; al has the number
+    mov     cx,8             ;called with edi set to offset of string
+    dec     edi
+bb0:inc     edi
+    shl     al,1             ;move most significant bit to carry flag
+    jc      bb1              ;if set copy '1'
+    mov     byte ptr [edi],'0'       ;else copy '0'
+    jmp     bb2
+bb1:mov     byte ptr [edi],'1'
+bb2:loop    bb0
+    ret
+ByteToBitString  endp
+
+ENDIF
+

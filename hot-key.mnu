@@ -1,0 +1,19 @@
+<----OS/2 Program HotKeys----> <----DOS Program HotKeys---->
+Alt-1 OS/2    Alt-I            Ctl-1 DOS      Ctl-I
+Alt-2 OS/2    Alt-J            Ctl-2 DOS      Ctl-J
+Alt-3         Alt-K            Ctl-3          Ctl-K
+Alt-4         Alt-L            Ctl-4          Ctl-L Labels
+Alt-5         Alt-M MagCom22   Ctl-5          Ctl-M MFK Data
+Alt-6         Alt-N Notes.os2  Ctl-6          Ctl-N
+Alt-7         Alt-O            Ctl-7          Ctl-O
+Alt-8         Alt-P Programs   Ctl-8          Ctl-P ProComm+
+Alt-9 Q Edit  Alt-Q Edit X     Ctl-9          Ctl-Q Quattro
+Alt-0 Q Edit  Alt-R Reference  Ctl-0 HotKeys  Ctl-R
+Alt-A         Alt-S Seek&Scan  Ctl-A          Ctl-S
+Alt-B         Alt-T PMComm     Ctl-B BrlndIDE Ctl-T
+Alt-C         Alt-U            Ctl-C CServe   Ctl-U
+Alt-D         Alt-V            Ctl-D          Ctl-V
+Alt-E         Alt-W            Ctl-E          Ctl-W
+Alt-F Fax/PM  Alt-X            Ctl-F FoxBase+ Ctl-X
+Alt-G         Alt-Y            Ctl-G          Ctl-Y
+Alt-H         Alt-Z Switch     Ctl-H          Ctl-Z

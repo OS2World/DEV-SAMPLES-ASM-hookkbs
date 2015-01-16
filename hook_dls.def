@@ -1,0 +1,11 @@
+; MFK Started:Tue  07-14-1992 :Revised:Sun  09-13-1992
+LIBRARY hook_dls
+
+DESCRIPTION "M.F.Kaplon KeyBoard Hook Code for hook_kbs"
+
+PROTMODE
+
+CODE  PRELOAD
+
+EXPORTS
+   InputHook       @1

@@ -1,0 +1,48 @@
+; HOOK_KBS.DAT Key Assignment file for hook_kbs.exe Sat  09-26-1992
+; A ";"indicates a comment and any text from ";" to end of line is ignored
+; Blank Lines are not allowed - place at least one ";" on any line
+; There must be at least 1 space between each field and the next field.
+; The first field in a line is either A# or C# indicating an assignment to
+; the Alt# or Ctrl# key where #  is  0,1,2,3,4,5,6,7,8,9 or to Alt-x/Ctrl-x
+; where x is any letter from a .. z. No distinction between LCase or UCase.
+; The next field indicates the kind of Session where :
+; 0 - Shell Assigns : 1 - Full Screen OS/2 : 2- Windowed AVIO type
+; 3 - Windowed PM type : 4 - Full Screen DOS : 7 - Windowed DOS
+; The next field is the fully qualified  name of the EXE / CMD / BAT file
+; The next field is 0 if there are no parameters passed to the program
+; otherwise it  contains the parameters. If there are multiple parameters
+; separated by spaces on the command line, enclose the entire command line
+; in double quotes e.g. (" /w  /t")
+; The line must be terminated with a space after the last parameter followed
+; by a  semi-colon (;)
+; This file  MUST be located in the directory c:\os2
+; The text below represents examples reflecting my use
+; The directories for the CMD files loaded by the 4OS2 command Processor
+; are in the Path. However they do not appear to want to behave as the DOS BAT
+; files do and must be loaded as indicated
+A1 0 c:\4os2\4os2.exe 0             ;OS2 window using 4OS2 Command Processor
+A2 0 c:\4os2\4os2.exe 0             ;OS2 window using 4OS2 Command Processor
+A9 0 d:\qos2\q.exe    0             ;q.exe editor
+A0 0 d:\qos2\q.exe    0             ;q.exe editor
+Af 0 d:\pmfax\pmfax.exe -r          ;PMFAx Software
+Am 0 c:\4os2\4os2.exe  magcom22.cmd ;MagCom22 Telecommunications
+An 0 d:\qos2\q.exe  d:\configs\notes.os2  ; On Line Notes
+Ap 0 c:\4os2\4os2.exe  launch.cmd   ;Menu for Launching Programs
+Aq 0 c:\4os2\4os2.exe  loadq.cmd    ;OS2 cmd file loaded by command processor
+;Aq 0 d:\cmd\loadq.cmd  0           ;does not work for cmd file above
+Ar 0 c:\4os2\4os2.exe  viewref.cmd  ;Menu for On Line References
+As 0 c:\os2\apps\pmseek.exe 0       ;Search & Scan Applet
+;At 0 c:\4os2\4os2.exe  softterm.cmd ;Softerm Terminal Program
+At 0 d:\pmcomm\pmcomm.exe 0         ;PMCOMM program
+Az 0 d:\os2execs\sw20-v.exe 0       ;Switch Program
+; These below are DOS programs
+C0 0 c:\4os2\4os2.exe "type d:\configs\hot-key.mnu & pause & exit" ;display Hot Key Assignments
+C1 7 c:\4dos40\4dos.com @c:\4dos40\4dos.ini  ;DOS window using 4DOS Command Processor
+C2 7 c:\4dos40\4dos.com @c:\4dos40\4dos.ini  ;DOS window using 4DOS Command rocessor
+Cb 7 e:\borlandc\bin\bc.exe 0 ;Borland IDE
+Cc 7 e:\cserve\cim.exe 0            ;DOS windowed program CompuServe program
+Cf 7 e:\bat\fox.bat    0            ;DOS bat file - loads FoxBase DataBase
+Cl 7 e:\bat\labels.bat 0            ;DOS bat file - loads Seiko Label Printer
+Cm 7 e:\bat\mfk.bat    0            ;DOS bat file - loads Personal data base
+Cp 7 e:\bat\pcplus.bat 0            ;DOS bat file - loads PCPlus Communications
+Cq 7 e:\qpro\q.exe     0            ;Quattro Pro
